@@ -53,8 +53,8 @@ impl<T> Pointer<T> {
         self.0 as usize
     }
 
-    /// Get the element size.
-    pub fn elem_size() -> usize {
+    /// Get the item size.
+    pub fn item_size() -> usize {
         ::std::mem::size_of::<T>()
     }
 
@@ -62,12 +62,12 @@ impl<T> Pointer<T> {
     /// 
     /// Use release to release the instance.
     pub fn alloc() -> Self {
-        Self::from_raw(unsafe { libc::malloc(Self::elem_size() as libc::size_t) as *const _})
+        Self::from_raw(unsafe { libc::malloc(Self::item_size() as libc::size_t) as *const _})
     }
 
     /// Allocate memory for n items.
     pub fn alloc_n(n: usize) -> Self {
-        Self::from_raw(unsafe { libc::malloc((Self::elem_size() * n) as libc::size_t) as *const _})
+        Self::from_raw(unsafe { libc::malloc((Self::item_size() * n) as libc::size_t) as *const _})
     }
 
     /// Deallocate memory.
@@ -104,7 +104,7 @@ impl<T> Pointer<T> {
     {
         let headroom_size = Self::headroom_size();
         let addr = unsafe {
-            let size_part = libc::malloc((headroom_size + Self::elem_size() * n) as libc::size_t) as *mut usize;
+            let size_part = libc::malloc((headroom_size + Self::item_size() * n) as libc::size_t) as *mut usize;
             *size_part = n;
             size_part as usize + headroom_size
         };
@@ -135,19 +135,19 @@ impl<T> Pointer<T> {
     }
 
     fn offset(&self, n: usize) -> *const T {
-        (self.addr() + Self::elem_size() * n) as *const _
+        (self.addr() + Self::item_size() * n) as *const _
     }
 
     fn ioffset(&self, n: isize) -> *const T {
-        (self.addr() as isize + Self::elem_size() as isize * n) as *const _
+        (self.addr() as isize + Self::item_size() as isize * n) as *const _
     }
 
     fn rev_offset(&self, n: usize) -> *const T {
-        (self.addr() - Self::elem_size() * n) as *const _
+        (self.addr() - Self::item_size() * n) as *const _
     }
 
     fn rev_ioffset(&self, n: isize) -> *const T {
-        (self.addr() as isize - Self::elem_size() as isize * n) as *const _
+        (self.addr() as isize - Self::item_size() as isize * n) as *const _
     }
 }
 
@@ -235,7 +235,7 @@ impl<T> Sub<Pointer<T>> for Pointer<T> {
     type Output = isize;
 
     fn sub(self, rhs: Pointer<T>) -> Self::Output {
-        (self.addr() as isize - rhs.addr() as isize) / Self::elem_size() as isize
+        (self.addr() as isize - rhs.addr() as isize) / Self::item_size() as isize
     }
 }
 
