@@ -7,7 +7,8 @@ use std::ops::{Sub, SubAssign};
 use std::ops::{Deref, DerefMut};
 use std::ops::{Index, IndexMut};
 
-#[derive(Copy, Clone)]
+/// Raw pointer wrapper.
+#[derive(Debug, Copy, Clone)]
 pub struct Pointer<T>(*const T);
 
 impl<T> Pointer<T> {
@@ -73,11 +74,11 @@ impl<T> Pointer<T> {
         }
     }
 
+    /// Cast the pointing type.
     pub fn cast<U>(&self) -> Pointer<U> {
         Pointer::from_addr(self.addr())
     }
 
-    // priate
     fn offset(&self, n: usize) -> *const T {
         (self.addr() + Self::elem_size() * n) as *const _
     }
@@ -233,6 +234,7 @@ impl<T> Index<Pointer<T>> for isize {
     }
 }
 
+// funny C-style (?) array reference :-)
 impl<T> IndexMut<usize> for Pointer<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         unsafe { &mut *(self.offset(index) as *mut _) }
@@ -302,6 +304,12 @@ mod tests {
         assert_eq!(p[0], 0);
         assert_eq!(p[1], 10);
         assert_eq!(p[2], 20);
+
+        let index = 1usize;
+        let iindex = 1isize;
+
+        assert_eq!(index[p], 10);
+        assert_eq!(iindex[p], 10);
 
         p.release();
     }
