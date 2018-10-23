@@ -1,4 +1,5 @@
 extern crate libc;
+extern crate num;
 
 use std::cmp::{Eq, PartialEq, Ord, PartialOrd, Ordering};
 
@@ -58,6 +59,8 @@ impl<T> Pointer<T> {
     }
 
     /// Allocate memory.
+    /// 
+    /// Use release to release the instance.
     pub fn alloc() -> Self {
         Self::from_raw(unsafe { libc::malloc(Self::elem_size() as libc::size_t) as *const _})
     }
@@ -72,6 +75,58 @@ impl<T> Pointer<T> {
         unsafe {
             libc::free(self.0 as *mut _);
         }
+    }
+
+    /// Allocate memory and initialize.
+    /// 
+    /// Use Pointer::delete to release the instance.
+    pub fn new<G>(generator: G) -> Self
+    where
+        G: FnOnce() -> T
+    {
+        let p = Self::alloc();
+        unsafe { ::std::ptr::write(p.0 as *mut _, generator()) };
+        p
+    }
+
+    /// Drop and release the instance.
+    pub fn delete(&self) {
+        ::std::mem::drop(unsafe { ::std::ptr::read(self.0) });
+        self.release();
+    }
+
+    /// Allocate memory and initialize n items.
+    /// 
+    /// Use Pointer::delete_n to release the instance.
+    pub fn new_n<G>(n: usize, mut generator: G) -> Self
+    where
+        G: FnMut(usize) -> T
+    {
+        let headroom_size = Self::headroom_size();
+        let addr = unsafe {
+            let size_part = libc::malloc((headroom_size + Self::elem_size() * n) as libc::size_t) as *mut usize;
+            *size_part = n;
+            size_part as usize + headroom_size
+        };
+        let p = Pointer::<T>::from_addr(addr);
+        for index in 0..n {
+            unsafe { ::std::ptr::write(p.offset(index) as *mut _, generator(index)) }
+        }
+        p
+    }
+
+    /// Drop and release the instances.
+    pub fn delete_n(&self) {
+        let size = unsafe { *((self.addr() - Self::headroom_size()) as *const usize) };
+        for index in 0..size {
+            ::std::mem::drop(unsafe { ::std::ptr::read(self.offset(index) as *const T) });
+        }
+        self.release();
+    }
+
+    fn headroom_size() -> usize {
+        let alignment = num::integer::lcm(::std::mem::align_of::<usize>(), ::std::mem::align_of::<T>());
+        ::std::cmp::max(::std::mem::size_of::<usize>(), alignment)
     }
 
     /// Cast the pointing type.
@@ -338,5 +393,54 @@ mod tests {
         assert!((*p_u32 == 0xC0BEBEEF) || (*p_u32 == 0xBEEFC0BE));
 
         p_u32.release();
+    }
+
+    struct S<'a>(&'a mut i32);
+
+    impl<'a> Drop for S<'a> {
+        fn drop(&mut self) {
+            *self.0 -= 100;
+        }
+    }
+
+    #[test]
+    fn new_delete() {
+        let mut x = 1;
+        {
+            let p = Pointer::<S>::new(|| S(&mut x));
+            assert_eq!((*p).0, &1);
+            p.delete();
+        }
+        // make sure drop was called
+        assert_eq!(x, -99);
+    }
+
+    #[test]
+    fn new_n_delete_n() {
+        static mut X0: i32 = 10;
+        static mut X1: i32 = 20;
+        static mut X2: i32 = 30;
+
+        let p = Pointer::<S>::new_n(3, move |index| {
+            let r = unsafe {
+                match index {
+                    0 => &mut X0,
+                    1 => &mut X1,
+                    _ => &mut X2,
+                }
+            };
+            S(r)
+        });
+        assert_eq!(p[0].0, &10);
+        assert_eq!(p[1].0, &20);
+        assert_eq!(p[2].0, &30);
+        p.delete_n();
+
+        // make sure drop was called
+        unsafe {
+            assert_eq!(X0, -90);
+            assert_eq!(X1, -80);
+            assert_eq!(X2, -70);
+        }
     }
 }
