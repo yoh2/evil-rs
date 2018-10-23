@@ -117,11 +117,12 @@ impl<T> Pointer<T> {
 
     /// Drop and release the instances.
     pub fn delete_n(&self) {
-        let size = unsafe { *((self.addr() - Self::headroom_size()) as *const usize) };
+        let size_part = (self.addr() - Self::headroom_size()) as *const usize;
+        let size = unsafe { *size_part };
         for index in 0..size {
             ::std::mem::drop(unsafe { ::std::ptr::read(self.offset(index) as *const T) });
         }
-        self.release();
+        unsafe { libc::free(size_part as *mut libc::c_void) }
     }
 
     fn headroom_size() -> usize {
