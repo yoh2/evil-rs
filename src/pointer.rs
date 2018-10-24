@@ -430,7 +430,7 @@ mod tests {
         static mut X1: i32 = 20;
         static mut X2: i32 = 30;
 
-        let p = Pointer::<S>::new_n(3, move |index| {
+        let p = Pointer::<S>::new_n(3, |index| {
             let r = unsafe {
                 match index {
                     0 => &mut X0,
