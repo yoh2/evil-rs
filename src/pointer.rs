@@ -9,7 +9,7 @@ use std::ops::{Deref, DerefMut};
 use std::ops::{Index, IndexMut};
 
 /// Raw pointer wrapper.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Pointer<T>(*const T);
 
 impl<T> Pointer<T> {
@@ -151,6 +151,14 @@ impl<T> Pointer<T> {
         (self.addr() as isize - Self::item_size() as isize * n) as *const _
     }
 }
+
+impl<T> Clone for Pointer<T> {
+    fn clone(&self) -> Self {
+        Pointer(self.0)
+    }
+}
+
+impl<T> Copy for Pointer<T> {}
 
 impl<T> PartialEq for Pointer<T> {
     fn eq(&self, rhs: &Self) -> bool {
@@ -443,5 +451,15 @@ mod tests {
             assert_eq!(X1, -80);
             assert_eq!(X2, -70);
         }
+    }
+
+    #[test]
+    fn copy_test() {
+        struct S; // S is not Copy
+        let s = S;
+        let p1 = Pointer::from_ref(&s);
+        let p2 = p1;
+        let p3 = p1; // Pointer<S> is Copy
+        assert_eq!(p2.addr(), p3.addr());
     }
 }
