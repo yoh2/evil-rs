@@ -65,12 +65,38 @@ impl<T> Pointer<T> {
         Self::from_raw(unsafe { libc::malloc(Self::item_size() as libc::size_t) as *const _})
     }
 
+    /// Allocate memory and initialize with a specified value.
+    /// 
+    /// Use release to release the instance.
+    pub fn alloc_with(src: T) -> Self {
+        let p = Self::alloc();
+        unsafe { ::std::ptr::write(p.0 as *mut _, src); }
+        p
+    }
+
     /// Allocate memory for n items.
     pub fn alloc_n(n: usize) -> Self {
         Self::from_raw(unsafe { libc::malloc((Self::item_size() * n) as libc::size_t) as *const _})
     }
 
-    /// Deallocate memory.
+    /// Allocate memory fro n items and initialize them with the initial value.
+    /// 
+    /// Use release to release the instance.
+    pub fn alloc_n_with(n: usize, src: T) -> Self
+    where
+        T: Clone,
+    {
+        let p = Self::alloc_n(n);
+        for index in 0..n {
+            unsafe {
+                ::std::ptr::write(p.offset(index) as *mut _, src.clone());
+            }
+        }
+        p
+    }
+
+
+    /// Deallocate memory. Drop::drop() will not called even if T is Drop.
     pub fn release(&self) {
         unsafe {
             libc::free(self.0 as *mut _);
@@ -87,6 +113,13 @@ impl<T> Pointer<T> {
         let p = Self::alloc();
         unsafe { ::std::ptr::write(p.0 as *mut _, generator()) };
         p
+    }
+
+    /// Allocate memory and initialize with a specified value.
+    /// 
+    /// Use Pointer::delete to release the instance.
+    pub fn new_with(src: T) -> Self {
+        Self::alloc_with(src)
     }
 
     /// Drop and release the instance.
@@ -113,6 +146,16 @@ impl<T> Pointer<T> {
             unsafe { ::std::ptr::write(p.offset(index) as *mut _, generator(index)) }
         }
         p
+    }
+
+    /// Allocate memory and initialize n items with a specified value.
+    /// 
+    /// Use Pointer::delete to release the instance.
+    pub fn new_n_with(n: usize, src: T) -> Self
+    where
+        T: Clone,
+    {
+        Self::new_n(n, |_| src.clone())
     }
 
     /// Drop and release the instances.
@@ -376,6 +419,24 @@ mod tests {
         assert_eq!(iindex[p], 10);
 
         p.release();
+    }
+
+    #[test]
+    fn alloc_with() {
+        #[derive(Debug, Eq, PartialEq)]
+        struct S(i32); // not Clone
+        let p = Pointer::new_with(S(10));
+        assert_eq!(*p, S(10));
+    }
+
+    #[test]
+    fn alloc_n_with() {
+        #[derive(Debug, Clone, Eq, PartialEq)]
+        struct S(i32);
+        let p = Pointer::new_n_with(3, S(10));
+        assert_eq!(p[0], S(10));
+        assert_eq!(p[1], S(10));
+        assert_eq!(p[2], S(10));
     }
 
     #[test]
